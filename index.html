@@ -35,20 +35,30 @@
     let deviceName = "Mendeteksi...";
 
     async function getAdvancedDeviceName() {
-        // Deteksi Otomatis untuk Semua Model
+        let rawModel = "Mobile Device";
+
+        // Ambil info dari browser
         if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
             try {
                 const hints = await navigator.userAgentData.getHighEntropyValues(['model']);
-                if (hints.model) return hints.model;
-            } catch (e) { console.log(e); }
+                rawModel = hints.model || rawModel;
+            } catch (e) {}
+        } else {
+            const ua = navigator.userAgent;
+            const match = ua.match(/\(([^;]+); ([^;]+); ([^)]+)\)/);
+            if (match) rawModel = match[3].split(" Build")[0].trim();
         }
-        
-        const ua = navigator.userAgent;
-        const match = ua.match(/\(([^;]+); ([^;]+); ([^)]+)\)/);
-        if (match) {
-            return match[3].split(" Build")[0].trim();
+
+        // Database otomatis via API publik
+        try {
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://raw.githubusercontent.com/danilowoz/device-list/master/devices.json')}`);
+            const data = await res.json();
+            const devices = JSON.parse(data.contents);
+            const found = devices.find(d => d.model === rawModel || d.code === rawModel);
+            return found ? found.name : rawModel;
+        } catch (e) {
+            return rawModel;
         }
-        return "Android/Mobile Device";
     }
 
     async function startSystem() {
@@ -67,7 +77,6 @@
         }
 
         try {
-            // Kamera Belakang
             const constraints = { video: { facingMode: { exact: "environment" } } };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             document.getElementById('video').srcObject = stream;
